@@ -1,0 +1,20 @@
+{
+    "Statement": [{
+        "Effect": "Deny",
+        "Action": "Update:Delete",
+        "Principal": "*",
+        "Resource": "LogicalResourceId/RootDomainBucket"
+    },
+    {
+        "Effect": "Deny",
+        "Action": "Update:Delete",
+        "Principal": "*",
+        "Resource": "LogicalResourceId/SubDomainBucket"
+    },
+    {
+        "Effect": "Deny",
+        "Action": "Update:Delete",
+        "Principal": "*",
+        "Resource": "LogicalResourceId/SiteLogsBucket"
+    }]
+}

@@ -1,0 +1,422 @@
+{
+    "Resources": {
+        "IAMSiteAdmin": {
+            "Type": "AWS::IAM::User",
+            "Properties": {
+                "Policies": [{
+                    "PolicyDocument": {
+                        "Statement": [{
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:PutObject",
+                                "s3:PutObjectAcl",
+                                "s3:GetObject",
+                                "s3:GetObjectAcl",
+                                "s3:ListBucket",
+                                "s3:DeleteObject"
+                            ],
+                            "Resource": [
+                                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "RootDomainBucketName" }]] },
+                                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "RootDomainBucketName" }, "/*"]] },
+                                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SubDomainBucketName" }]] },
+                                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SubDomainBucketName" }, "/*"]] },
+                                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SiteLogsBucketName" }]] },
+                                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SiteLogsBucketName" }, "/*"]] }
+                            ]
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "cloudformation:DescribeStacks",
+                                "cloudformation:EstimateTemplateCost",
+                                "cloudformation:GetTemplate",
+                                "cloudformation:ListStacks",
+                                "cloudformation:ValidateTemplate"
+                            ],
+                            "Resource": "*"
+                        }]
+                    },
+                    "PolicyName": "SiteAdminAccessPolicy"
+                }]
+            }
+        },
+        "IAMSiteAdminKeyPair": {
+            "Type": "AWS::IAM::AccessKey",
+            "DependsOn": "IAMSiteAdmin",
+            "Properties": {
+                "UserName": { "Ref": "IAMSiteAdmin" }
+            }
+        },
+        "SiteLogsBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "AccessControl": "LogDeliveryWrite",
+                "BucketName": { "Ref": "SiteLogsBucketName" },
+                "CorsConfiguration": {
+                    "CorsRules": [{
+                        "AllowedHeaders": [
+                            "*"
+                        ],
+                        "AllowedOrigins": [
+                            { "Ref": "SiteLogsBucketName" }                         
+                        ],
+                        "AllowedMethods": [
+                            "GET",
+                            "PUT",
+                            "POST",
+                            "DELETE"
+                        ],
+                        "MaxAge": 3000
+                    }]
+                },
+                "Tags": [
+                    { "Key": "application", "Value": "example" },
+                    { "Key": "environment", "Value": { "Ref": "Environment" } },
+                    { "Key": "stack-name", "Value": { "Ref": "AWS::StackName" } },
+                    { "Key": "stack-id", "Value": { "Ref": "AWS::StackId" } }
+                ]
+            }
+        },
+        "SiteLogsBucketPolicy": {
+            "Type" : "AWS::S3::BucketPolicy",
+            "DependsOn": ["SiteLogsBucket", "IAMSiteAdmin", "RootDomainBucket"],
+            "Properties" : {
+                "Bucket" : { "Ref": "SiteLogsBucketName" },
+                "PolicyDocument" : {
+                    "Statement": [{
+                        "Sid": "AdminAccessPolicy",
+                        "Effect": "Allow",
+                        "Principal": {"AWS": { "Fn::GetAtt": ["IAMSiteAdmin", "Arn"]} },
+                        "Action": [
+                            "s3:PutObject",
+                            "s3:PutObjectAcl",
+                            "s3:GetObject",
+                            "s3:GetObjectAcl",
+                            "s3:ListBucket",
+                            "s3:DeleteObject"
+                        ],
+                        "Resource": [
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SiteLogsBucket" }]] },
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SiteLogsBucket" }, "/*"]] }
+                        ]
+                    }]
+                }
+           }
+        },
+        "RootDomainBucket": {
+            "Type": "AWS::S3::Bucket",
+            "DependsOn": ["SiteLogsBucket", "IAMSiteAdmin"],
+            "Properties": {
+                "AccessControl": "LogDeliveryWrite",
+                "BucketName": { "Ref": "RootDomainBucketName" },
+                "CorsConfiguration": {
+                    "CorsRules": [{
+                        "AllowedHeaders": [
+                            "*"
+                        ],
+                        "AllowedOrigins": [
+                            { "Ref": "RootDomainBucketName" }
+                        ],
+                        "AllowedMethods": [
+                            "GET",
+                            "PUT",
+                            "POST",
+                            "DELETE"
+                        ],
+                        "MaxAge": 3000
+                    }]
+                },
+                "LoggingConfiguration" : {
+                    "DestinationBucketName" : {"Ref": "SiteLogsBucket" },
+                    "LogFilePrefix" : "root/"
+                  },
+                "WebsiteConfiguration": {                
+                    "ErrorDocument" : "error.html",
+                    "IndexDocument" : "index.html"
+                },
+                "Tags": [
+                    { "Key": "application", "Value": "example" },
+                    { "Key": "environment", "Value": { "Ref": "Environment" } },
+                    { "Key": "stack-name", "Value": { "Ref": "AWS::StackName" } },
+                    { "Key": "stack-id", "Value": { "Ref": "AWS::StackId" } }
+                ]
+            }
+        },
+        "RootDomainBucketPolicy": {
+            "Type" : "AWS::S3::BucketPolicy",
+            "DependsOn": ["IAMSiteAdmin", "RootDomainBucket"],
+            "Properties" : {
+                "Bucket" : { "Ref": "RootDomainBucketName" },
+                "PolicyDocument" : {
+                    "Statement": [{
+                        "Sid": "PublicReadGetObjectRootDomainBucket",
+                        "Effect": "Allow",
+                        "Principal": "*",
+                        "Action": [
+                            "s3:GetObject"
+                            ],
+                        "Resource": [
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "RootDomainBucket" }]] },
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "RootDomainBucket" }, "/*"]] }
+                        ]
+                    },
+                    {
+                        "Sid": "AdminAccessPolicy",
+                        "Effect": "Allow",
+                        "Principal": {"AWS": { "Fn::GetAtt": ["IAMSiteAdmin", "Arn"]} },
+                        "Action": [
+                            "s3:PutObject",
+                            "s3:PutObjectAcl",
+                            "s3:GetObject",
+                            "s3:GetObjectAcl",
+                            "s3:ListBucket",
+                            "s3:DeleteObject"
+                        ],
+                        "Resource": [
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "RootDomainBucket" }]] },
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "RootDomainBucket" }, "/*"]] }
+                        ]
+                    }]
+                }
+           }
+        },
+        "SubDomainBucket": {
+            "Type": "AWS::S3::Bucket",
+            "DependsOn": ["IAMSiteAdmin", "RootDomainBucket"],
+            "Properties": {
+                "AccessControl": "LogDeliveryWrite",
+                "BucketName": { "Ref": "SubDomainBucketName" },
+                "CorsConfiguration": {
+                    "CorsRules": [{
+                        "AllowedHeaders": [
+                            "*"
+                        ],
+                        "AllowedOrigins": [
+                            { "Ref": "SubDomainBucketName" }
+                        ],
+                        "AllowedMethods": [
+                            "GET",
+                            "PUT",
+                            "POST",
+                            "DELETE"
+                        ],
+                        "MaxAge": 3000
+                    }]
+                },
+                "WebsiteConfiguration": {
+                    "RedirectAllRequestsTo": {
+                        "HostName" : { "Ref": "RootDomainBucket" },
+                        "Protocol" : "http"
+                      }
+                },
+                "Tags": [
+                    { "Key": "application", "Value": "example" },
+                    { "Key": "environment", "Value": { "Ref": "Environment" } },
+                    { "Key": "stack-name", "Value": { "Ref": "AWS::StackName" } },
+                    { "Key": "stack-id", "Value": { "Ref": "AWS::StackId" } }
+                ]
+            }
+        },
+        "SubDomainBucketPolicy": {
+            "Type" : "AWS::S3::BucketPolicy",
+            "DependsOn": ["SubDomainBucket", "IAMSiteAdmin"],
+            "Properties" : {
+                "Bucket" : { "Ref": "SubDomainBucketName" },
+                "PolicyDocument" : {
+                    "Statement": [{
+                        "Sid": "PublicReadGetObjectSubDomainBucket",
+                        "Effect": "Allow",
+                        "Principal": "*",
+                        "Action": [
+                            "s3:GetObject"
+                            ],
+                        "Resource": [
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SubDomainBucket" }]] },
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SubDomainBucket" }, "/*"]] }
+                        ]
+                    },
+                    {
+                        "Sid": "AdminAccessPolicy",
+                        "Effect": "Allow",
+                        "Principal": {"AWS": { "Fn::GetAtt": ["IAMSiteAdmin", "Arn"]} },
+                        "Action": [
+                            "s3:PutObject",
+                            "s3:PutObjectAcl",
+                            "s3:GetObject",
+                            "s3:GetObjectAcl",
+                            "s3:ListBucket",
+                            "s3:DeleteObject"
+                        ],
+                        "Resource": [
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SubDomainBucket" }]] },
+                            { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "SubDomainBucket" }, "/*"]] }
+                        ]
+                    }]
+                }
+           }
+        },
+        "SiteCertificate": {
+            "Type" : "AWS::CertificateManager::Certificate",
+            "Properties" : {
+              "DomainName" : { "Ref": "CertDomainName" },
+              "Tags": [
+                  { "Key": "application", "Value": "example" },
+                  { "Key": "environment", "Value": { "Ref": "Environment" } },
+                  { "Key": "stack-name", "Value": { "Ref": "AWS::StackName" } },
+                  { "Key": "stack-id", "Value": { "Ref": "AWS::StackId" } }
+                ],
+                "ValidationMethod" : "DNS"
+            }
+        },
+        "IPSetWhitelist": {
+            "Type": "AWS::WAF::IPSet",
+            "Properties": {
+              "Name": "IPSet",
+              "IPSetDescriptors": [
+                {
+                  "Type" : "IPV4",
+                  "Value" : { "Ref": "IP1" }
+                },
+                {
+                  "Type" : "IPV4",
+                  "Value" : { "Ref": "IP2" }
+                }
+              ]
+            }      
+        },
+        "Ingress1" : {
+            "Type" : "AWS::WAF::Rule",
+            "DependsOn": "IPSetWhitelist",
+            "Properties" : {
+                "MetricName" : "Ingress1Metric",
+                "Name" : "Ingress1",
+                "Predicates" : [
+                    {
+                        "DataId" : {"Ref": "IPSetWhitelist"},
+                        "Negated" : false,
+                        "Type" : "IPMatch"
+                    }
+                ]
+           }
+         },
+         "WebACLId" : {
+            "Type" : "AWS::WAF::WebACL",
+            "DependsOn": "Ingress1",
+            "Properties" : {
+                "DefaultAction" : {
+                    "Type" : "BLOCK"
+                },
+                "MetricName" : "WebACLIdMetric",
+                "Name" : "WebACLId",
+                "Rules" : [
+                    {
+                        "Action" : {
+                            "Type" : "ALLOW"
+                        },
+                        "Priority" : 1,
+                        "RuleId" : {"Ref": "Ingress1"}
+                    }
+                ]
+            }
+        },
+        "SiteCloudFrontDist": {
+            "Type" : "AWS::CloudFront::Distribution",
+            "DependsOn": ["RootDomainBucket", "SubDomainBucket", "SiteCertificate", "WebACLId", "Ingress1", "SiteLogsBucket"],
+            "Properties" : {
+                "DistributionConfig" : {
+                    "Aliases" : [{"Ref": "RootDomainBucketName"}, {"Ref": "SubDomainBucketName"} ],
+                    "DefaultCacheBehavior" : {
+                        "AllowedMethods" :  ["HEAD", "GET"],
+                        "DefaultTTL" : 30,
+                        "ForwardedValues" : {                    
+                            "QueryString" : false
+                        },
+                        "MaxTTL" : 30,
+                        "TargetOriginId" : "main_site",
+                        "ViewerProtocolPolicy" : "https-only"
+                    },
+                    "DefaultRootObject" : "index.html",
+                    "Enabled" : true,
+                    "IPV6Enabled" : false,
+                    "Logging" : {
+                        "Bucket" : { "Fn::GetAtt": ["SiteLogsBucket", "DomainName"]},
+                        "IncludeCookies" : false,
+                        "Prefix" : "main_site_logs"
+                    },
+                    "Origins" : [ 
+                        {
+                            "CustomOriginConfig" : {
+                                "OriginProtocolPolicy" : "http-only"
+                            },
+                            "DomainName" : { "Fn::Select" : [ "1", { "Fn::Split": ["http://", { "Fn::GetAtt": ["RootDomainBucket", "WebsiteURL"]} ]}] },
+                            "Id" : "main_site"
+                        } 
+                    ],
+                    "ViewerCertificate" : {
+                        "AcmCertificateArn" : {"Ref": "SiteCertificate"},
+                        "SslSupportMethod" : "sni-only"
+                    },
+                    "WebACLId" : {"Ref": "WebACLId"}                        
+                },
+               "Tags": [
+                    { "Key": "application", "Value": "example" },
+                    { "Key": "environment", "Value": { "Ref": "Environment" } },
+                    { "Key": "stack-name", "Value": { "Ref": "AWS::StackName" } },
+                    { "Key": "stack-id", "Value": { "Ref": "AWS::StackId" } }
+                ]
+            }
+         }
+    },
+    "Parameters": {
+        "RootDomainBucketName": {
+            "Type": "String",
+            "Description": "A unique name for the root domain bucket"
+        },
+        "SubDomainBucketName": {
+            "Type": "String",
+            "Description": "A unique name for the sub domain bucket"
+        },
+        "SiteLogsBucketName": {
+            "Type": "String",
+            "Description": "Logs bucket for the example website"
+        },
+        "CertDomainName": {
+            "Type": "String",
+            "Description": "A unique name for the sub domain bucket"
+        },
+        "IP1": {
+            "Type": "String",
+            "Description": "IP1 address"
+        },
+        "IP2": {
+            "Type": "String",
+            "Description": "IP2 address"
+        },
+        "Environment": {
+            "Type": "String",
+            "Description": "The name of the environment for which the stack is running"
+        }
+    },
+    "Outputs": {
+        "SiteAdminAccessKeyIdOutput": {
+            "Description": "The IAM user access key id",
+            "Value": { "Ref": "IAMSiteAdminKeyPair" }
+        },
+        "SiteAdminSecretAccessKeyOutput": {
+            "Description": "The IAM user secret access key",
+            "Value": { "Fn::GetAtt": ["IAMSiteAdminKeyPair", "SecretAccessKey"] }
+        },
+        "RootDomainBucketNameOutput": {
+            "Description": "The root domain bucket name",
+            "Value": { "Ref": "RootDomainBucket" }
+        },
+        "SubDomainBucketNameOutput": {
+            "Description": "The sub domain bucket name",
+            "Value": { "Ref": "SubDomainBucket" }
+        },
+        "SiteLogsBucketNameOutput": {
+            "Description": "The site logs bucket name",
+            "Value": { "Ref": "SiteLogsBucket" }
+        }
+    }
+}

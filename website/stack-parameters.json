@@ -1,0 +1,26 @@
+[
+    {
+      "ParameterKey": "RootDomainBucketName",
+      "ParameterValue": "example.com"
+    },
+    {
+      "ParameterKey": "SubDomainBucketName",
+      "ParameterValue": "www.example.com"
+    },
+    {
+      "ParameterKey": "SiteLogsBucketName",
+      "ParameterValue": "logs.example.com"
+    },
+    {
+      "ParameterKey": "CertDomainName",
+      "ParameterValue": "*.example.com"
+    },
+    {
+      "ParameterKey": "IP1",
+      "ParameterValue": "172.16.188.24/32"
+    },
+    {
+      "ParameterKey": "IP2",
+      "ParameterValue": "175.12.161.22/32"
+    }
+  ]
